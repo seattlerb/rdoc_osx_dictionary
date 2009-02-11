@@ -1,0 +1,7 @@
+History.txt
+Manifest.txt
+README.txt
+Rakefile
+bin/rdoc_osx_dictionary
+lib/rdoc_osx_dictionary.rb
+test/test_rdoc_osx_dictionary.rb
