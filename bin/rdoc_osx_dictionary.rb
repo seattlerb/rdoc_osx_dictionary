@@ -5,14 +5,9 @@ $v ||= false
 require 'pp'
 require 'rubygems'
 require 'rdoc/ri/driver'
+require 'fileutils'
 
-base = File.expand_path("~/Work/p4/zss/src/newri/dev")
-$:.unshift base
-$:.unshift File.join(base, "lib")
-load File.join(base, "bin/ri")
-
-$, = ", "
-$homepath.sub!(/rdoc/, 'ri') # HACK - RI::Paths.raw_path lies
+# $, = ", "
 
 exclude = ["ActiveRecord::ConnectionAdapters::Column::new",
            "IRB::OutputMethod#parse_printf_format",
@@ -24,19 +19,10 @@ exclude = ["ActiveRecord::ConnectionAdapters::Column::new",
 
 $exclude = Hash[*exclude.map { |k| [k, true] }.flatten]
 
-path = File.expand_path("~/.ri/cache/classes")
-system "ri Array > /dev/null" unless File.exist? path
-dict = Marshal.load File.read(path)
-
 class String
   def munge
     self.gsub(/&/, '&amp;').gsub(/>/, '&gt;').gsub(/</, '&lt;')
   end
-end
-
-module SM
-  remove_const :Flow
-  Flow = RDoc::Markup::Flow
 end
 
 class RDoc::Markup::Flow::LIST # ARG!
@@ -249,38 +235,74 @@ def d_footer
   EOD
 end
 
-seen = {}
+seen  = {}
+ri    = RDoc::RI::Driver.new
+dirty = false
+dict  = ri.class_cache
+base  = File.expand_path "~/.ri/"
 
-File.open("RubyGemsDictionary.xml", "w") do |xml|
+dict.sort.each do |klass, definition|
+  path = "#{base}/cache/#{klass}.xml"
+
+  next if seen[klass.downcase]
+  seen[klass.downcase] = true
+
+  unless File.exist? path then
+    warn "New entries for dictionary. Rebuilding dictionary." unless dirty
+    dirty = true
+
+    warn klass if $v
+
+    File.open(path, "w") do |f|
+      methods = ri.load_cache_for(klass)
+      next if methods.nil? || methods.empty?
+      result = []
+      result << d_entry(klass, dict[klass], true)
+
+      methods.each do |k,v|
+        result << d_entry(k, v)
+      end
+      result = result.join("\n")
+      f.puts result
+    end
+  end
+end
+
+exit 0 unless dirty
+
+dict_src_path = "#{base}/RubyGemsDictionary.xml"
+
+File.open(dict_src_path, "w") do |xml|
   xml.puts d_header
 
   dict.sort.each do |klass, definition|
-    # next unless klass =~ /^(IO|File)$/
-    path = File.expand_path("~/.ri/cache/#{klass}.xml")
-
-    next if seen[klass.downcase]
-    seen[klass.downcase] = true
-
-    unless File.exist? path then
-      warn klass if $v
-
-      File.open(path, "w") do |f|
-        methods = load_cache_for(klass)
-        next if methods.empty?
-        result = []
-        result << d_entry(klass, dict[klass], true)
-
-        methods.each do |k,v|
-          result << d_entry(k, v)
-        end
-        result = result.join("\n")
-        f.puts result
-        xml.puts result
-      end
-    else
-      xml.puts File.read(path)
-    end
+    xml.puts File.read("#{base}/cache/#{klass}.xml")
   end
 
   xml.puts d_footer
 end
+
+dict_name            = "RubyAndGems"
+data                 = File.expand_path("#{$0}/../../data")
+css_path             = "#{data}/RubyGemsDictionary.css"
+plist_path           = "#{data}/RubyGemsInfo.plist"
+dict_dev_kit_obj_dir = "#{base}/objects"
+destination_folder   = File.expand_path "~/Library/Dictionaries"
+
+Dir.chdir base do
+  system("/Developer/Extras/Dictionary Development Kit/bin/build_dict.sh",
+         dict_name, dict_src_path, css_path, plist_path)
+end
+warn "installing"
+
+FileUtils.mkdir_p destination_folder
+
+system("rsync", "-rvP",
+       "#{dict_dev_kit_obj_dir}/#{dict_name}.dictionary",
+       "#{destination_folder}/#{dict_name}.dictionary")
+
+FileUtils.touch destination_folder
+
+warn "done"
+warn ""
+warn "To test the new dictionary, try Dictionary.app."
