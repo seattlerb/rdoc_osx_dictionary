@@ -7,16 +7,7 @@ require 'rubygems'
 require 'rdoc/ri/driver'
 require 'fileutils'
 
-# $, = ", "
-
-exclude = ["ActiveRecord::ConnectionAdapters::Column::new",
-           "IRB::OutputMethod#parse_printf_format",
-           "IRB::SLex#postproc",
-           "StringScanner#pre_match",
-           "StringScanner#post_match",
-           "Transaction::Simple",
-          ]
-
+exclude = [] # nothing to exclude currently
 $exclude = Hash[*exclude.map { |k| [k, true] }.flatten]
 
 class String
@@ -282,27 +273,26 @@ File.open(dict_src_path, "w") do |xml|
   xml.puts d_footer
 end
 
-dict_name            = "RubyAndGems"
-data                 = File.expand_path("#{$0}/../../data")
-css_path             = "#{data}/RubyGemsDictionary.css"
-plist_path           = "#{data}/RubyGemsInfo.plist"
-dict_dev_kit_obj_dir = "#{base}/objects"
-destination_folder   = File.expand_path "~/Library/Dictionaries"
+dict_name = "RubyAndGems"
+data      = File.expand_path("#{$0}/../../data")
+dict_path = File.expand_path "~/Library/Dictionaries"
 
 Dir.chdir base do
   system("/Developer/Extras/Dictionary Development Kit/bin/build_dict.sh",
-         dict_name, dict_src_path, css_path, plist_path)
+         dict_name, dict_src_path,
+         "#{data}/RubyGemsDictionary.css",
+         "#{data}/RubyGemsInfo.plist")
 end
+
 warn "installing"
 
-FileUtils.mkdir_p destination_folder
+FileUtils.mkdir_p dict_path
 
-system("rsync", "-rvP",
-       "#{dict_dev_kit_obj_dir}/#{dict_name}.dictionary",
-       "#{destination_folder}/#{dict_name}.dictionary")
+system("rsync", "-r",
+       "#{base}/objects/#{dict_name}.dictionary",
+       "#{dict_path}/#{dict_name}.dictionary")
 
-FileUtils.touch destination_folder
+FileUtils.touch dict_path
 
-warn "done"
-warn ""
+warn "installed"
 warn "To test the new dictionary, try Dictionary.app."
