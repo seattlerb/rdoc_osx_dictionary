@@ -2,6 +2,7 @@ History.txt
 Manifest.txt
 README.txt
 Rakefile
-bin/rdoc_osx_dictionary.rb
+bin/rdoc_osx_dictionary
 data/RubyGemsDictionary.css
 data/RubyGemsInfo.plist
+lib/rdoc_osx_dictionary.rb
