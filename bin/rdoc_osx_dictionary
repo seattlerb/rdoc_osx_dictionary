@@ -1,0 +1,9 @@
+#!/usr/bin/ruby -ws
+
+$v ||= false
+
+require 'rubygems'
+require 'rdoc_osx_dictionary'
+
+dict = RDoc::OSXDictionary.new
+dict.make
