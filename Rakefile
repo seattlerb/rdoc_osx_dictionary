@@ -3,7 +3,9 @@
 require 'rubygems'
 require 'hoe'
 
-Hoe.spec 'rdoc_osx_dictionary' do |p|
+Hoe.plugin :seattlerb
+
+Hoe.spec 'rdoc_osx_dictionary' do
   developer 'Ryan Davis', 'ryand-ruby@zenspider.com'
 
   self.rubyforge_name = 'seattlerb'

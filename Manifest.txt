@@ -6,3 +6,4 @@ bin/rdoc_osx_dictionary
 data/RubyGemsDictionary.css
 data/RubyGemsInfo.plist
 lib/rdoc_osx_dictionary.rb
+lib/rubygems_plugin.rb

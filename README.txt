@@ -1,32 +1,32 @@
 = rdoc_osx_dictionary
 
-* FIX (url)
+* http://rubyforge.org/projects/seattlerb
 
 == DESCRIPTION:
 
-FIX (describe your package)
+rdoc via Apple's Dictionary.app. Automatically builds and installs an
+Apple Dictionary with all rdoc nicely formatted.
 
 == FEATURES/PROBLEMS:
 
-* FIX (list of features or problems)
-
-== SYNOPSIS:
-
-  FIX (code sample of usage)
+* Automatically builds and installs an Apple Dictionary with all rdoc
+  nicely formatted.
 
 == REQUIREMENTS:
 
-* FIX (list of requirements)
+* rdoc gem
+* rubygems
+* Mac OS X w/ Developer Tools
 
 == INSTALL:
 
-* FIX (sudo gem install, anything else)
+* sudo gem install rdoc_osx_dictionary
 
 == LICENSE:
 
 (The MIT License)
 
-Copyright (c) 2009 FIX
+Copyright (c) Ryan Davis, seattle.rb
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the

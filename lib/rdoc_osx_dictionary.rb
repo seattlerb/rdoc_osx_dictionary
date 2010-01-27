@@ -215,7 +215,7 @@ class RDoc::OSXDictionary
       end
     end
 
-    exit 0 unless dirty
+    return unless dirty
 
     dict_src_path = "#{base}/RubyGemsDictionary.xml"
 
@@ -251,7 +251,35 @@ class RDoc::OSXDictionary
     FileUtils.touch dict_path
 
     warn "installed"
-    warn "To test the new dictionary, try Dictionary.app."
+    warn "Run Dictionary.app to use the new dictionary. (activate in prefs!)"
+  end
+
+  @hooked = false
+
+  def self.install_gem_hooks
+    return if @hooked
+
+    cmd = File.expand_path File.join(__FILE__, "../../bin/rdoc_osx_dictionary")
+
+    # post_install isn't actually fully post-install... so I must
+    # force via at_exit :(
+    Gem.post_install do |i|
+      at_exit do
+        warn "updating OSX ruby + gem dictionary, if necessary"
+        system cmd
+      end
+    end
+
+    Gem.post_uninstall do |i|
+      at_exit do
+        require 'fileutils'
+        warn "nuking old ri cache to force rebuild"
+        FileUtils.rm_r File.expand_path("~/.ri")
+        system cmd
+      end
+    end
+
+    @hooked = true
   end
 end
 
