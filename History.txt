@@ -1,3 +1,12 @@
+=== 1.0.1 / 2010-01-28
+
+* 4 bug fixes:
+
+  * Added known bad XML to the exclude list.
+  * Added missing dependency on rdoc 2 gem. Old rdoc won't cut it.
+  * Fixed rsync command
+  * Terminal.app in UTF8 breaks on some input. Fix by clearing $LANG.
+
 === 1.0.0 / 2010-01-27
 
 * 1 major enhancement
