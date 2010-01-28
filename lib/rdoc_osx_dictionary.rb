@@ -3,6 +3,9 @@
 require 'fileutils'
 require 'rdoc/ri/driver'
 
+# Forces /bin/tr to ignore badly formatted "unicode". (no clue where from)
+ENV['LANG'] = ""
+
 class RDoc::OSXDictionary
   VERSION = '1.0.0'
 
