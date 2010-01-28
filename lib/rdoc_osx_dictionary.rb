@@ -7,9 +7,14 @@ require 'rdoc/ri/driver'
 ENV['LANG'] = ""
 
 class RDoc::OSXDictionary
-  VERSION = '1.0.0'
+  VERSION = '1.0.1'
 
-  exclude = [] # nothing to exclude currently
+  exclude = %w[ StringScanner#pre_match
+                StringScanner#post_match
+                Gem::Package::TarInput
+                IRB::OutputMethod
+              ]
+
   EXCLUDE = Hash[*exclude.map { |k| [k, true] }.flatten]
 
   NAME_MAP = {
@@ -247,9 +252,7 @@ class RDoc::OSXDictionary
 
     FileUtils.mkdir_p dict_path
 
-    system("rsync", "-r",
-           "#{base}/objects/#{dict_name}.dictionary",
-           "#{dict_path}/#{dict_name}.dictionary")
+    system "rsync", "-r", "#{base}/objects/#{dict_name}.dictionary", dict_path
 
     FileUtils.touch dict_path
 
