@@ -5,9 +5,10 @@ require 'rdoc/ri/driver'
 
 # Forces /bin/tr to ignore badly formatted "unicode". (no clue where from)
 ENV['LANG'] = ""
+ENV['LC_ALL'] = "C"
 
 class RDoc::OSXDictionary
-  VERSION = '1.0.1'
+  VERSION = '1.1.0'
 
   exclude = %w[ StringScanner#pre_match
                 StringScanner#post_match
@@ -46,6 +47,7 @@ class RDoc::OSXDictionary
     '='   => 'eq',
     '?'   => 'eh',
     '`'   => 'backtick',
+    '::'  => '__',
   }
 
   NAME_MAP_RE = Regexp.new(NAME_MAP.keys.sort_by { |k| k.length }.map {|s|
@@ -119,7 +121,7 @@ class RDoc::OSXDictionary
   def display_method_info definition
     fullname = definition["full_name"]
     name = definition["name"]
-    id = fullname.gsub(/:|#/, '_').gsub(/#{NAME_MAP_RE}/) { |x| "_"+NAME_MAP[x] }
+    id = fullname.gsub(/#{NAME_MAP_RE}/) { |x| "_#{NAME_MAP[x]}" }
 
     params = definition["params"]
     comment = Array(definition["comment"]).join("\n")
@@ -193,6 +195,7 @@ class RDoc::OSXDictionary
     seen  = {}
     ri    = RDoc::RI::Driver.new
     dirty = false
+    force = $f || false
     dict  = ri.class_cache
     base  = File.expand_path "~/.ri/"
 
@@ -217,13 +220,13 @@ class RDoc::OSXDictionary
           methods.each do |k,v|
             result << d_entry(k, v)
           end
-          result = result.join("\n")
-          f.puts result
+
+          f.puts result.join("\n")
         end
       end
     end
 
-    return unless dirty
+    return unless dirty unless force
 
     dict_src_path = "#{base}/RubyGemsDictionary.xml"
 
@@ -242,22 +245,27 @@ class RDoc::OSXDictionary
     dict_path = File.expand_path "~/Library/Dictionaries"
 
     Dir.chdir base do
-      system("/Developer/Extras/Dictionary Development Kit/bin/build_dict.sh",
-             dict_name, dict_src_path,
-             "#{data}/RubyGemsDictionary.css",
-             "#{data}/RubyGemsInfo.plist")
+      run("/Developer/Extras/Dictionary Development Kit/bin/build_dict.sh",
+          dict_name, dict_src_path,
+          "#{data}/RubyGemsDictionary.css",
+          "#{data}/RubyGemsInfo.plist")
     end
 
     warn "installing"
 
     FileUtils.mkdir_p dict_path
 
-    system "rsync", "-r", "#{base}/objects/#{dict_name}.dictionary", dict_path
+    run "rsync", "-r", "#{base}/objects/#{dict_name}.dictionary", dict_path
 
     FileUtils.touch dict_path
 
     warn "installed"
     warn "Run Dictionary.app to use the new dictionary. (activate in prefs!)"
+  end
+
+  def run(*cmd)
+    warn "running: " + cmd.map { |s| s.inspect }.join(" ") if $v
+    abort "command failed" unless system(*cmd)
   end
 
   @hooked = false

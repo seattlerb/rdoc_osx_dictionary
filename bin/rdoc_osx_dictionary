@@ -1,6 +1,7 @@
 #!/usr/bin/ruby -ws
 
 $v ||= false
+$f ||= false
 
 require 'rubygems'
 require 'rdoc_osx_dictionary'
