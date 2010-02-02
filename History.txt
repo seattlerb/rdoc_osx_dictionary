@@ -1,3 +1,15 @@
+=== 1.1.0 / 2010-02-01
+
+* 2 minor enhancements:
+
+  * Added -f to force rebuild.
+  * Refactored system calls to a handler so failures are uniformly handled.
+
+* 2 bug fixes:
+
+  * Fixed dictionary entry id munging to avoid errant duplicates.
+  * Setting $LC_ALL to C to fix unicode errors discovered in iTerm.
+
 === 1.0.1 / 2010-01-28
 
 * 4 bug fixes:
