@@ -8,7 +8,7 @@ ENV['LANG'] = ""
 ENV['LC_ALL'] = "C"
 
 class RDoc::OSXDictionary
-  VERSION = '1.1.1'
+  VERSION = '1.2.0'
 
   exclude = %w[ StringScanner#pre_match
                 StringScanner#post_match

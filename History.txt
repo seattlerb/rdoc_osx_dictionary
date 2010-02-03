@@ -1,3 +1,16 @@
+=== 1.2.0 / 2010-02-03
+
+* 3 minor enhancements:
+
+  * Added -d flag to delete .ri directory to help me debug.
+  * Loudly skip bad files created from rdoc.
+  * Skip _reduce_\d+ methods (generated methods from racc of no value to rdoc).
+
+* 2 bug fixes:
+
+  * Added extra de-duping on xml creation to fix The Bug I Cannot Repro(tm).
+  * OMG I am an idiot. Generating class id string properly now. :/
+
 === 1.1.1 / 2010-02-02
 
 * 1 minor enhancement:
