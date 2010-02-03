@@ -77,7 +77,7 @@ class RDoc::OSXDictionary
 
     result = []
 
-    shortname = "<d:index d:value="#{name.munge}"/>" if name != fullname
+    shortname = "<d:index d:value=#{name.munge.inspect}/>" if name != fullname
 
     result << <<-"EOD".gsub(/^    /, '')
     <d:entry id="#{id}" d:title="#{fullname}">
@@ -92,10 +92,10 @@ class RDoc::OSXDictionary
 
     ext, ext_type = sources.size == 1 ? ["From", :str] : ["Extensions", :list]
 
-    [["Includes", includes.munge, :str],
-     ["Constants", constants.join(", "), :str],
-     ["Class Methods", classmeths.join(", ").munge, :str],
-     ["Instance Methods", instmeths.join(", ").munge, :str],
+    [["Includes",         includes.munge,              :str],
+     ["Constants",        constants.join(", "),        :str],
+     ["Class Methods",    classmeths.join(", ").munge, :str],
+     ["Instance Methods", instmeths.join(", ").munge,  :str],
      [ext, sources, ext_type]].each do |n, s, t|
       next if s.empty?
       case t
@@ -124,6 +124,8 @@ class RDoc::OSXDictionary
     fullname = definition["full_name"]
     name = definition["name"]
     id = fullname.gsub(/#{NAME_MAP_RE}/) { |x| "_#{NAME_MAP[x]}" }
+
+    return if name =~ /_reduce_\d+/
 
     params = definition["params"]
     comment = Array(definition["comment"]).join("\n")
