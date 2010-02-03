@@ -268,10 +268,10 @@ class RDoc::OSXDictionary
     abort "command failed" unless system(*cmd)
   end
 
-  @hooked = false
+  @hooked = {}
 
   def self.install_gem_hooks
-    return if @hooked
+    return if @hooked[:hook]
 
     cmd = File.expand_path File.join(__FILE__, "../../bin/rdoc_osx_dictionary")
 
@@ -279,6 +279,8 @@ class RDoc::OSXDictionary
     # force via at_exit :(
     Gem.post_install do |i|
       at_exit do
+        return if @hooked[:install]
+        @hooked[:install] = true
         warn "updating OSX ruby + gem dictionary, if necessary"
         system cmd
       end
@@ -286,6 +288,8 @@ class RDoc::OSXDictionary
 
     Gem.post_uninstall do |i|
       at_exit do
+        return if @hooked[:uninstall]
+        @hooked[:uninstall] = true
         require 'fileutils'
         warn "nuking old ri cache to force rebuild"
         FileUtils.rm_r File.expand_path("~/.ri")
@@ -293,7 +297,7 @@ class RDoc::OSXDictionary
       end
     end
 
-    @hooked = true
+    @hooked[:hook] = true
   end
 end
 
