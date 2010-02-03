@@ -2,6 +2,7 @@
 
 $v ||= false
 $f ||= false
+$d ||= false
 
 require 'rubygems'
 require 'rdoc_osx_dictionary'

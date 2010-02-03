@@ -110,8 +110,8 @@ class RDoc::OSXDictionary
     end
 
     %w(name comment superclass includes constants class_methods
-     instance_methods sources display_name full_name).each do |name|
-      definition.delete name
+     instance_methods sources display_name full_name).each do |key|
+      definition.delete key
     end
 
     result << <<-"EOD".gsub(/^    /, '')
@@ -194,12 +194,15 @@ class RDoc::OSXDictionary
   end
 
   def make
+    base  = File.expand_path "~/.ri/"
+
+    FileUtils.rm_rf base if $d
+
     seen  = {}
     ri    = RDoc::RI::Driver.new
     dirty = false
     force = $f || false
     dict  = ri.class_cache
-    base  = File.expand_path "~/.ri/"
 
     dict.sort.each do |klass, definition|
       path = "#{base}/cache/#{klass}.xml"
@@ -236,7 +239,13 @@ class RDoc::OSXDictionary
       xml.puts d_header
 
       dict.sort.each do |klass, definition|
-        xml.puts File.read("#{base}/cache/#{klass}.xml")
+        path = "#{base}/cache/#{klass}.xml"
+        body = File.read path rescue nil
+        if body then
+          xml.puts body
+        else
+          warn "Skipping: couldn't read: #{path}"
+        end
       end
 
       xml.puts d_footer
