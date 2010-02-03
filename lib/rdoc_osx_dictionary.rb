@@ -237,10 +237,15 @@ class RDoc::OSXDictionary
 
     dict_src_path = "#{base}/RubyGemsDictionary.xml"
 
+    seen.clear
+
     File.open(dict_src_path, "w") do |xml|
       xml.puts d_header
 
       dict.sort.each do |klass, definition|
+        next if seen[klass.downcase]
+        seen[klass.downcase] = true
+
         path = "#{base}/cache/#{klass}.xml"
         body = File.read path rescue nil
         if body then
