@@ -8,7 +8,7 @@ ENV['LANG'] = ""
 ENV['LC_ALL'] = "C"
 
 class RDoc::OSXDictionary
-  VERSION = '1.1.0'
+  VERSION = '1.1.1'
 
   exclude = %w[ StringScanner#pre_match
                 StringScanner#post_match
@@ -77,10 +77,12 @@ class RDoc::OSXDictionary
 
     result = []
 
+    shortname = "<d:index d:value="#{name.munge}"/>" if name != fullname
+
     result << <<-"EOD".gsub(/^    /, '')
     <d:entry id="#{id}" d:title="#{fullname}">
       <d:index d:value="#{fullname.munge}"/>
-      <d:index d:value="#{name.munge}"/>
+      #{shortname}
       <h1>#{title.munge}</h1>
 
       #{comment}
@@ -303,7 +305,7 @@ end
 
 class String
   def munge
-    self.gsub(/&/, '&amp;').gsub(/>/, '&gt;').gsub(/</, '&lt;')
+    self.gsub(/&/, '&amp;').gsub(/>/, '&gt;').gsub(/</, '&lt;').gsub(/-/, 'minus')
   end
 end
 
