@@ -1,3 +1,13 @@
+=== 1.1.1 / 2010-02-02
+
+* 1 minor enhancement:
+
+  * Extra munging to remove more (all?) warnings from the dictionary compiler
+
+* 1 bug fix:
+
+  * Only run the hooks once per gem invocation, not once per install/uninstall
+
 === 1.1.0 / 2010-02-01
 
 * 2 minor enhancements:
