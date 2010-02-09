@@ -7,6 +7,8 @@
 rdoc via Apple's Dictionary.app. Automatically builds and installs an
 Apple Dictionary with all rdoc nicely formatted.
 
+Inspired by: http://priithaamer.com/blog/ruby-on-rails-dictionary-for-macosx
+
 == FEATURES/PROBLEMS:
 
 * Automatically builds and installs an Apple Dictionary with all rdoc

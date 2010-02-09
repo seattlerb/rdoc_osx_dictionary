@@ -3,6 +3,8 @@
 require 'fileutils'
 require 'rdoc/ri/driver'
 
+$q ||= false
+
 # Forces /bin/tr to ignore badly formatted "unicode". (no clue where from)
 ENV['LANG'] = ""
 ENV['LC_ALL'] = "C"
@@ -10,13 +12,12 @@ ENV['LC_ALL'] = "C"
 class RDoc::OSXDictionary
   VERSION = '1.2.0'
 
-  exclude = %w[ StringScanner#pre_match
-                StringScanner#post_match
-                Gem::Package::TarInput
-                IRB::OutputMethod
-              ]
-
-  EXCLUDE = Hash[*exclude.map { |k| [k, true] }.flatten]
+  EXCLUDE = {
+    "StringScanner#pre_match"  => true,
+    "StringScanner#post_match" => true,
+    "Gem::Package::TarInput"   => true,
+    "IRB::OutputMethod"        => true,
+  }
 
   NAME_MAP = {
     '!'   => 'bang',
@@ -55,48 +56,65 @@ class RDoc::OSXDictionary
                             }.reverse.join("|"))
 
 
+  def id *args
+    args.map { |s| s.gsub(/:/, ',') }.join(",").gsub(/#{NAME_MAP_RE}/) { |x|
+      ",#{NAME_MAP[x]}"
+    }
+  end
+
   def display_class_info definition
     name       = definition["name"]
     fullname   = definition["full_name"]
     supername  = definition["superclass"]
-    includes   = (definition["includes"]||[]).join(", ")
-    classmeths = definition["class_methods"].map { |hash| hash["name"] }
-    instmeths  = definition["instance_methods"].map { |hash| hash["name"] }
+    classmeths = definition["class_methods"]
+    instmeths  = definition["instance_methods"]
     type       = supername ? "class" : "module"
     title      = supername ? "class #{fullname} < #{supername}" : "module #{fullname}"
+
     comment    = Array(definition["comment"]).join("\n")
-    constants  = Array(definition["constants"])
+    includes   = Array(definition["includes"]).map  { |c| c["name"] }
+    constants  = Array(definition["constants"]).map { |c| c["name"] }
+
     sources    = definition["sources"].map { |path|
       next if path =~ /^.System/
       path.sub(%r%^.*?1\.[89]/doc/([^/]+).*%, '\1')
     }.compact
 
-    comment = "Improperly formatted" if EXCLUDE[fullname]
+    return if $q and fullname !~ /^(String|Array|Bignum)/
 
-    id = "#{type}_#{fullname}".munge.gsub(/[\s:.#]/, '_')
+    comment = "Improperly formatted" if EXCLUDE[fullname]
 
     result = []
 
     shortname = "<d:index d:value=#{name.munge.inspect}/>" if name != fullname
 
     result << <<-"EOD".gsub(/^    /, '')
-    <d:entry id="#{id}" d:title="#{fullname}">
+    <d:entry id="#{id type, fullname}" d:title="#{fullname}">
       <d:index d:value="#{fullname.munge}"/>
       #{shortname}
       <h1>#{title.munge}</h1>
 
       #{comment}
-  EOD
+    EOD
 
-    constants.map! { |c| c["name"] }
+    classmeths.map! { |hash|
+      name = hash["name"]
+      "<a href=\"x-dictionary:r:#{id "defs", fullname, name}\">#{name}</a>"
+    }
+
+    instmeths.map! { |hash|
+      name = hash["name"]
+      "<a href=\"x-dictionary:r:#{id "def", fullname, name}\">#{name.munge}</a>"
+    }
 
     ext, ext_type = sources.size == 1 ? ["From", :str] : ["Extensions", :list]
 
-    [["Includes",         includes.munge,              :str],
-     ["Constants",        constants.join(", "),        :str],
-     ["Class Methods",    classmeths.join(", ").munge, :str],
-     ["Instance Methods", instmeths.join(", ").munge,  :str],
-     [ext, sources, ext_type]].each do |n, s, t|
+    [["Includes",         includes.join(", "),   :str],
+     ["Constants",        constants.join(", "),  :str],
+     ["Class Methods",    classmeths.join(", "), :str],
+     ["Instance Methods", instmeths.join(", "),  :str],
+     [ext,                sources,               ext_type],
+    ].each do |n, s, t|
       next if s.empty?
       case t
       when :str then
@@ -109,21 +127,49 @@ class RDoc::OSXDictionary
       end
     end
 
-    %w(name comment superclass includes constants class_methods
-     instance_methods sources display_name full_name).each do |key|
-      definition.delete key
+    definition["sources"].sort.each do |path|
+      warn path
+      gemname = File.basename(path.sub(%r(/ri/\w+/cdesc-\w+.yaml), ''))
+      next if gemname =~ /cdesc-\w+.yaml/ # core content
+
+      defn = YAML.load File.read(path).gsub(/- !.+/, '-')
+
+      im = defn["instance_methods"].map { |h| h["name"] }
+      cm = defn["class_methods"].map    { |h| h["name"] }
+
+      cm.map! { |name|
+        "<a href=\"x-dictionary:r:#{id "defs", fullname, name}\">#{name}</a>"
+      }
+
+      im.map! { |name|
+        "<a href=\"x-dictionary:r:#{id "def", fullname, name}\">#{name.munge}</a>"
+      }
+
+      unless im.empty? && cm.empty? then
+        result << "<h3>Extension: #{gemname}</h3>"
+        unless cm.empty? then
+          items = cm.map { |o| "<li>#{o}</li>" }.join("\n")
+          result << "<h4>Class Methods:</h4><ul>#{items}</ul>"
+        end
+        unless im.empty? then
+          items = im.map { |o| "<li>#{o}</li>" }.join("\n")
+          result << "<h4>Instance Methods:</h4><ul>#{items}</ul>"
+        end
+      end
     end
 
     result << <<-"EOD".gsub(/^    /, '')
     </d:entry>
-  EOD
+    EOD
     result.join("\n")
   end
 
   def display_method_info definition
     fullname = definition["full_name"]
+    klass = definition["class"]
     name = definition["name"]
-    id = fullname.gsub(/#{NAME_MAP_RE}/) { |x| "_#{NAME_MAP[x]}" }
+
+    return if $q and klass !~ /^(String|Array|Bignum)/
 
     return if name =~ /_reduce_\d+/
 
@@ -133,14 +179,19 @@ class RDoc::OSXDictionary
 
     comment = "Improperly formatted" if EXCLUDE[fullname]
 
+    type = definition["is_singleton"] ? "defs" : "def"
+
+    # TODO: aliases don't have recv
+    # TODO: some regular methods don't have recv
+
     result = <<-"EOD".gsub(/^    /, '')
-    <d:entry id="def_#{id}" d:title="#{id}">
+    <d:entry id="#{id type, klass, name}" d:title="#{fullname.munge}">
       <d:index d:value="#{fullname.munge}"/>
       <d:index d:value="#{name.munge}"/>
       <h1>#{fullname.munge}</h1>
-      <p class="signatures">
+      <pre class="signatures">
         <b>#{name.munge}#{params.munge}</b>
-      </p>
+      </pre>
       #{comment}
     </d:entry>
   EOD
@@ -225,6 +276,7 @@ class RDoc::OSXDictionary
           result << d_entry(klass, dict[klass], true)
 
           methods.each do |k,v|
+            v["class"] = klass
             result << d_entry(k, v)
           end
 
@@ -291,7 +343,8 @@ class RDoc::OSXDictionary
   def self.install_gem_hooks
     return if @hooked[:hook]
 
-    cmd = File.expand_path File.join(__FILE__, "../../bin/rdoc_osx_dictionary")
+    rdoc_osx_dictionary_path = File.expand_path File.join(__FILE__, "../../bin/rdoc_osx_dictionary")
+    cmd = "#{Gem.ruby} #{rdoc_osx_dictionary_path}"
 
     # post_install isn't actually fully post-install... so I must
     # force via at_exit :(
@@ -321,7 +374,7 @@ end
 
 class String
   def munge
-    self.gsub(/&/, '&amp;').gsub(/>/, '&gt;').gsub(/</, '&lt;').gsub(/-/, 'minus')
+    self.gsub(/&/, '&amp;').gsub(/>/, '&gt;').gsub(/</, '&lt;').gsub(/-/, '&#45;')
   end
 end
 
