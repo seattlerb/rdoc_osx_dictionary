@@ -190,11 +190,19 @@ class RDoc::OSXDictionary
       <d:index d:value="#{name.munge}"/>
       <h1>#{fullname.munge}</h1>
       <pre class="signatures">
-        <b>#{name.munge}#{params.munge}</b>
+        #{d_signatures(name, params)}
       </pre>
       #{comment}
     </d:entry>
   EOD
+  end
+
+  def d_signatures name, params
+    result = " "
+    if params.strip =~ /^\(/
+      result << "<b>#{name.munge}</b>"
+    end
+    result << "<b>#{params.munge.gsub(/\n/, "<br />")}</b>"
   end
 
   def d_header
