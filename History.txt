@@ -1,3 +1,16 @@
+=== 1.3.0 / 2010-02-09
+
+* 4 minor enhancements:
+
+  * Improved hyperlinks in class definitions to point straight at methods.
+  * Improved method signature output (imajes)
+  * Made method signature a pre block to improve display of space formatted text.
+  * Refactored and improved class output to clearly define class extensions.
+
+* 1 bug fix:
+
+  * Specify exactly which ruby to execute (hinegardner)
+
 === 1.2.0 / 2010-02-03
 
 * 3 minor enhancements:
