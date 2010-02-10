@@ -66,19 +66,12 @@ class RDoc::OSXDictionary
     name       = definition["name"]
     fullname   = definition["full_name"]
     supername  = definition["superclass"]
-    classmeths = definition["class_methods"]
-    instmeths  = definition["instance_methods"]
     type       = supername ? "class" : "module"
     title      = supername ? "class #{fullname} < #{supername}" : "module #{fullname}"
-
     comment    = Array(definition["comment"]).join("\n")
-    includes   = Array(definition["includes"]).map  { |c| c["name"] }
-    constants  = Array(definition["constants"]).map { |c| c["name"] }
 
-    sources    = definition["sources"].map { |path|
-      next if path =~ /^.System/
-      path.sub(%r%^.*?1\.[89]/doc/([^/]+).*%, '\1')
-    }.compact
+    definition["includes"].map!  { |c| c["name"] }
+    definition["constants"].map! { |c| c["name"] }
 
     return if $q and fullname !~ /^(String|Array|Bignum)/
 
@@ -97,71 +90,66 @@ class RDoc::OSXDictionary
       #{comment}
     EOD
 
-    classmeths.map! { |hash|
-      name = hash["name"]
-      "<a href=\"x-dictionary:r:#{id "defs", fullname, name}\">#{name}</a>"
-    }
+    extensions = []
 
-    instmeths.map! { |hash|
-      name = hash["name"]
-      "<a href=\"x-dictionary:r:#{id "def", fullname, name}\">#{name.munge}</a>"
-    }
+    definition["sources"].shift # remove first one as the original source
+    definition["sources"].each do |path|
+      next if path =~ /^.System/
 
-    ext, ext_type = sources.size == 1 ? ["From", :str] : ["Extensions", :list]
+      gemname   = File.basename(path.sub(%r(/ri/\w+/cdesc-\w+.yaml), ''))
+      extension = YAML.load File.read(path).gsub(/- !.+/, '-')
 
-    [["Includes",         includes.join(", "),   :str],
-     ["Constants",        constants.join(", "),  :str],
-     ["Class Methods",    classmeths.join(", "), :str],
-     ["Instance Methods", instmeths.join(", "),  :str],
-     [ext,                sources,               ext_type],
-    ].each do |n, s, t|
-      next if s.empty?
-      case t
-      when :str then
-        result << "<h3>#{n}:</h3><p>#{s}</p>"
-      when :list then
-        items = s.map { |o| "<li>#{o}</li>" }.join("\n")
-        result << "<h3>#{n}:</h3><ul>#{items}</ul>"
-      else
-        raise "unknown type #{t.inspect}"
+      extension["includes"].map!  { |c| c["name"] }
+      extension["constants"].map! { |c| c["name"] }
+
+      detail = class_details(name, fullname, extension, 4)
+
+      next if detail.empty?
+
+      extensions << "<h3>#{gemname}:</h3>"
+      extensions << detail
+      %w(class_methods instance_methods includes constants).each do |k|
+        definition[k] -= extension[k]
       end
     end
 
-    definition["sources"].sort.each do |path|
-      warn path
-      gemname = File.basename(path.sub(%r(/ri/\w+/cdesc-\w+.yaml), ''))
-      next if gemname =~ /cdesc-\w+.yaml/ # core content
-
-      defn = YAML.load File.read(path).gsub(/- !.+/, '-')
-
-      im = defn["instance_methods"].map { |h| h["name"] }
-      cm = defn["class_methods"].map    { |h| h["name"] }
-
-      cm.map! { |name|
-        "<a href=\"x-dictionary:r:#{id "defs", fullname, name}\">#{name}</a>"
-      }
-
-      im.map! { |name|
-        "<a href=\"x-dictionary:r:#{id "def", fullname, name}\">#{name.munge}</a>"
-      }
-
-      unless im.empty? && cm.empty? then
-        result << "<h3>Extension: #{gemname}</h3>"
-        unless cm.empty? then
-          items = cm.map { |o| "<li>#{o}</li>" }.join("\n")
-          result << "<h4>Class Methods:</h4><ul>#{items}</ul>"
-        end
-        unless im.empty? then
-          items = im.map { |o| "<li>#{o}</li>" }.join("\n")
-          result << "<h4>Instance Methods:</h4><ul>#{items}</ul>"
-        end
-      end
-    end
+    result << class_details(name, fullname, definition)
+    result << "<h2>Extensions:</h2>" unless extensions.empty?
+    result << extensions
 
     result << <<-"EOD".gsub(/^    /, '')
     </d:entry>
     EOD
     result.join("\n")
+  end
+
+  def class_details name, fullname, definition, level = 2
+    h = "h#{level}"
+    result     = []
+    includes   = definition["includes"]
+    constants  = definition["constants"]
+
+    classmeths = definition["class_methods"].map { |hash|
+      name = hash["name"]
+      "<a href=\"x-dictionary:r:#{id "defs", fullname, name}\">#{name}</a>"
+    }
+
+    instmeths  = definition["instance_methods"].map { |hash|
+      name = hash["name"]
+      "<a href=\"x-dictionary:r:#{id "def", fullname, name}\">#{name.munge}</a>"
+    }
+
+    [["Includes",         includes],
+     ["Constants",        constants],
+     ["Class Methods",    classmeths],
+     ["Instance Methods", instmeths],
+    ].each do |n, a|
+      next if a.empty?
+
+      result << "<#{h}>#{n}:</#{h}><p>#{a.join ", "}</p>"
+    end
+
+    result
   end
 
   def display_method_info definition
