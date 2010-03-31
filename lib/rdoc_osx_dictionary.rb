@@ -338,6 +338,7 @@ class RDoc::OSXDictionary
 
   def self.install_gem_hooks
     return if @hooked[:hook]
+    return unless File.exist? File.expand_path("~/.ri/autorun")
 
     rdoc_osx_dictionary_path = File.expand_path File.join(__FILE__, "../../bin/rdoc_osx_dictionary")
     cmd = "#{Gem.ruby} #{rdoc_osx_dictionary_path}"
@@ -359,7 +360,7 @@ class RDoc::OSXDictionary
         @hooked[:uninstall] = true
         require 'fileutils'
         warn "nuking old ri cache to force rebuild"
-        FileUtils.rm_r File.expand_path("~/.ri")
+        FileUtils.rm_r File.expand_path("~/.ri/cache")
         system cmd
       end
     end
