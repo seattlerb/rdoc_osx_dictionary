@@ -13,10 +13,6 @@ class RDoc::OSXDictionary
   VERSION = '1.3.1'
 
   EXCLUDE = {
-    "StringScanner#pre_match"  => true,
-    "StringScanner#post_match" => true,
-    "Gem::Package::TarInput"   => true,
-    "IRB::OutputMethod"        => true,
   }
 
   NAME_MAP = {
@@ -55,6 +51,11 @@ class RDoc::OSXDictionary
                               Regexp.escape(s)
                             }.reverse.join("|"))
 
+  attr_reader :to_html
+
+  def initialize
+    @to_html = RDoc::Markup::ToHtml.new
+  end
 
   def id *args
     args.map { |s| s.gsub(/:/, ',') }.join(",").gsub(/#{NAME_MAP_RE}/) { |x|
@@ -62,18 +63,16 @@ class RDoc::OSXDictionary
     }
   end
 
-  def display_class_info definition
-    name       = definition["name"]
-    fullname   = definition["full_name"]
-    supername  = definition["superclass"]
-    type       = supername ? "class" : "module"
-    title      = supername ? "class #{fullname} < #{supername}" : "module #{fullname}"
-    comment    = Array(definition["comment"]).join("\n")
+  def display_class_info definition, source
+    fullname  = definition.full_name
 
-    definition["includes"].map!  { |c| c["name"] }
-    definition["constants"].map! { |c| c["name"] }
+    name      = definition.name
+    is_class  = ! definition.module?
+    supername = definition.superclass if is_class
+    comment   = to_html.convert definition.comment
 
-    return if $q and fullname !~ /^(String|Array|Bignum)/
+    type       = is_class ? "class" : "module"
+    title      = is_class ? "class #{fullname} < #{supername}" : "module #{fullname}"
 
     comment = "Improperly formatted" if EXCLUDE[fullname]
 
@@ -81,41 +80,28 @@ class RDoc::OSXDictionary
 
     shortname = "<d:index d:value=#{name.munge.inspect}/>" if name != fullname
 
-    result << <<-"EOD".gsub(/^    /, '')
-    <d:entry id="#{id type, fullname}" d:title="#{fullname}">
-      <d:index d:value="#{fullname.munge}"/>
-      #{shortname}
-      <h1>#{title.munge}</h1>
+    result << <<-"EOD".gsub(/^ {6}/, '')
+      <d:entry id="#{id type, fullname}" d:title="#{fullname}">
+        <d:index d:value="#{fullname.munge}"/>
+        #{shortname}
+        <h1>#{title.munge}</h1>
 
-      #{comment}
+        #{comment}
     EOD
 
-    extensions = []
-
-    definition["sources"].shift # remove first one as the original source
-    definition["sources"].each do |path|
-      next if path =~ /^.System/
-
-      gemname   = File.basename(path.sub(%r(/ri/\w+/cdesc-\w+.yaml), ''))
-      extension = YAML.load File.read(path).gsub(/- !.+/, '-')
-
-      extension["includes"].map!  { |c| c["name"] }
-      extension["constants"].map! { |c| c["name"] }
-
-      detail = class_details(name, fullname, extension, 4)
-
-      next if detail.empty?
-
-      extensions << "<h3>#{gemname}:</h3>"
-      extensions << detail
-      %w(class_methods instance_methods includes constants).each do |k|
-        definition[k] -= extension[k]
-      end
-    end
-
     result << class_details(name, fullname, definition)
-    result << "<h2>Extensions:</h2>" unless extensions.empty?
-    result << extensions
+
+    # TODO: proper extension support
+    # detail = class_details(name, fullname, extension, 4)
+
+      #  result << "<h2>Extensions:</h2>" unless extensions.empty? # FIX
+
+      # extensions << "<h3>#{gemname}:</h3>"
+      # extensions << detail
+      # %w(class_methods instance_methods includes constants).each do |k|
+      #   definition[k] -= extension[k]
+      # end
+    # end
 
     result << <<-"EOD".gsub(/^    /, '')
     </d:entry>
@@ -124,18 +110,18 @@ class RDoc::OSXDictionary
   end
 
   def class_details name, fullname, definition, level = 2
-    h = "h#{level}"
-    result     = []
-    includes   = definition["includes"]
-    constants  = definition["constants"]
+    h         = "h#{level}"
+    result    = []
+    includes  = definition.includes.map { |c| c.name }
+    constants = definition.constants.map { |c| c.name }
 
-    classmeths = definition["class_methods"].map { |hash|
-      name = hash["name"]
+    classmeths = definition.singleton_methods.map { |cm|
+      name = cm.name
       "<a href=\"x-dictionary:r:#{id "defs", fullname, name}\">#{name}</a>"
     }
 
-    instmeths  = definition["instance_methods"].map { |hash|
-      name = hash["name"]
+    instmeths = definition.instance_method_list.map { |im|
+      name = im.name
       "<a href=\"x-dictionary:r:#{id "def", fullname, name}\">#{name.munge}</a>"
     }
 
@@ -153,44 +139,44 @@ class RDoc::OSXDictionary
   end
 
   def display_method_info definition
-    fullname = definition["full_name"]
-    klass = definition["class"]
-    name = definition["name"]
+    klass     = definition.parent_name
 
-    return if $q and klass !~ /^(String|Array|Bignum)/
+    fullname  = definition.full_name
+    name      = definition.name
+    singleton = definition.singleton
+    params    = definition.arglists
+    comment   = to_html.convert definition.comment
+    type      = singleton ? "defs" : "def"
 
     return if name =~ /_reduce_\d+/
 
-    params = definition["params"]
-    comment = Array(definition["comment"]).join("\n")
     comment = "undocumented" if comment.empty?
-
     comment = "Improperly formatted" if EXCLUDE[fullname]
 
-    type = definition["is_singleton"] ? "defs" : "def"
+    # HACK to deal with the Dictionary compiler fucking with me.
+    comment = comment.gsub(/<span[^>]+>/, '').gsub(/<\/span>/, '')
+    comment = comment.gsub(/(<pre[^>]*>)\s*\n/, '\1')
 
-    # TODO: aliases don't have recv
-    # TODO: some regular methods don't have recv
-
-    result = <<-"EOD".gsub(/^    /, '')
-    <d:entry id="#{id type, klass, name}" d:title="#{fullname.munge}">
-      <d:index d:value="#{fullname.munge}"/>
-      <d:index d:value="#{name.munge}"/>
-      <h1>#{fullname.munge}</h1>
-      <pre class="signatures">
-        #{d_signatures(name, params)}
-      </pre>
+    result = <<-"EOD".gsub(/^ {6}/, '')
+      <d:entry id="#{id type, klass, name}" d:title="#{fullname.munge}">
+        <d:index d:value="#{fullname.munge}"/>
+        <d:index d:value="#{name.munge}"/>
+        <h1>#{fullname.munge}</h1>
+        <pre class="signatures">
+          #{d_signatures(name, params)}
+        </pre>
       #{comment}
-    </d:entry>
-  EOD
+      </d:entry>
+    EOD
   end
 
   def d_signatures name, params
     result = " "
+    params ||= ""
     if params.strip =~ /^\(/
       result << "<b>#{name.munge}</b>"
     end
-    result << "<b>#{params.munge.gsub(/\n/, "<br />")}</b>"
+    result << "<b>#{params.munge.gsub(/\n+/, "\n")}</b>"
   end
 
   def d_header
@@ -202,14 +188,6 @@ class RDoc::OSXDictionary
 -->
 <d:dictionary xmlns="http://www.w3.org/1999/xhtml" xmlns:d="http://www.apple.com/DTDs/DictionaryService-1.0.rng">
   EOD
-  end
-
-  def d_entry fullname, definition, klass = false
-    if klass then
-      display_class_info definition
-    else
-      display_method_info definition
-    end
   end
 
   def d_footer
@@ -247,54 +225,85 @@ class RDoc::OSXDictionary
 
     FileUtils.rm_rf base if $d
 
-    seen  = {}
-    ri    = RDoc::RI::Driver.new
+    dir = File.join base, "dict"
+    FileUtils.mkdir_p dir unless File.directory? dir
+
     dirty = false
     force = $f || false
-    dict  = ri.class_cache
+    ri    = RDoc::RI::Driver.new
+    dict  = ri.classes
 
-    dict.sort.each do |klass, definition|
-      path = "#{base}/cache/#{klass}.xml"
+    c_seen = {}
+    m_seen = {} # HACK: known issue: on a case insensitive FS we're losing files
+    l_seen = {}
 
-      next if seen[klass.downcase]
-      seen[klass.downcase] = true
+    dict.sort.each do |klass, stores|
+      path = "#{base}/dict/#{klass}.xml"
+
+      next if $q and klass !~ /^(String|Array|Bignum)/
 
       unless File.exist? path then
-        warn "New entries for dictionary. Rebuilding dictionary." unless dirty
+        unless dirty then
+          warn "New entries for dictionary. Rebuilding dictionary."
+          warn "Sing along, kids!"
+        end
         dirty = true
-
         warn klass if $v
 
-        File.open(path, "w") do |f|
-          methods = ri.load_cache_for(klass)
-          next if methods.nil? || methods.empty?
-          result = []
-          result << d_entry(klass, dict[klass], true)
+        $stderr.print klass[0,1] unless l_seen[klass[0,1]]
+        l_seen[klass[0,1]] = true
 
-          methods.each do |k,v|
-            v["class"] = klass
-            result << d_entry(k, v)
+        File.open(path, "w") do |f|
+          c_result, m_result = [], []
+
+          extension = false
+          m_seen.clear
+          stores.each do |store|
+            cdesc = store.load_class klass
+            type  = store.type
+
+            next if c_seen[[klass, type]]
+
+            # HACK: fix me after store inversion dealt with
+            next unless type == :system
+
+            c_result << display_class_info(cdesc, store.friendly_path)
+
+            cdesc.method_list.each do |method|
+              next if m_seen[method.full_name.downcase]
+              method = store.load_method klass, method.full_name
+              m_result << display_method_info(method)
+              m_seen[method.full_name.downcase] = true
+            end
+
+            extension = true
+            c_seen[[klass, type]] = true
           end
 
-          f.puts result.join("\n")
+          f.puts c_result.join("\n")
+          f.puts m_result.join("\n")
         end
       end
     end
+
+    warn "! YAY!! All done!!!" if dirty
 
     return unless dirty unless force
 
     dict_src_path = "#{base}/RubyGemsDictionary.xml"
 
-    seen.clear
+    seen = {}
 
     File.open(dict_src_path, "w") do |xml|
       xml.puts d_header
 
       dict.sort.each do |klass, definition|
-        next if seen[klass.downcase]
-        seen[klass.downcase] = true
+        next if $q and klass !~ /^(String|Array|Bignum)/
 
-        path = "#{base}/cache/#{klass}.xml"
+        next if seen[klass]
+        seen[klass] = true
+
+        path = "#{base}/dict/#{klass}.xml"
         body = File.read path rescue nil
         if body then
           xml.puts body
@@ -312,6 +321,7 @@ class RDoc::OSXDictionary
 
     Dir.chdir base do
       run("/Developer/Extras/Dictionary Development Kit/bin/build_dict.sh",
+          "-c=0",
           dict_name, dict_src_path,
           "#{data}/RubyGemsDictionary.css",
           "#{data}/RubyGemsInfo.plist")
@@ -360,7 +370,7 @@ class RDoc::OSXDictionary
         @hooked[:uninstall] = true
         require 'fileutils'
         warn "nuking old ri cache to force rebuild"
-        FileUtils.rm_r File.expand_path("~/.ri/cache")
+        FileUtils.rm_r File.expand_path("~/.ri/dict")
         system cmd
       end
     end
@@ -372,44 +382,5 @@ end
 class String
   def munge
     self.gsub(/&/, '&amp;').gsub(/>/, '&gt;').gsub(/</, '&lt;').gsub(/-/, '&#45;')
-  end
-end
-
-class RDoc::Markup::Flow::LIST # ARG!
-  def to_s
-    pre, post = { :NUMBER => ['<ol>', '</ol>'] }[self.type] || ['<ul>', '</ul>']
-
-    raise "no: #{self.type}" unless pre
-
-    "#{pre}#{contents.join("\n")}#{post}"
-  end
-end
-
-class Struct
-  alias :old_to_s :to_s
-
-  MARKUP = {
-    "RULE" => [nil, nil],
-    "H"    => ["<h2>", "</h2>"],
-    "P"    => ["<p>", "</p>"],
-    "VERB" => ["<pre>", "</pre>"],
-    "LI"   => ['<li>', '</li>'],
-  }
-
-  def body
-    self.text
-  end
-
-  def to_s
-    name = self.class.name
-    if name =~ /Flow/ then
-      short = name.split(/::/).last
-      raise short unless MARKUP.has_key? short
-      pre, post = MARKUP[short]
-      return "" unless pre
-      "#{pre}#{self.body}#{post}"
-    else
-      old_to_s
-    end
   end
 end
