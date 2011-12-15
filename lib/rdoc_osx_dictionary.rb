@@ -374,22 +374,3 @@ class String
     self.gsub(/&/, '&amp;').gsub(/>/, '&gt;').gsub(/</, '&lt;').gsub(/-/, '&#45;')
   end
 end
-
-# HACK
-class RDoc::Markup::Verbatim < RDoc::Markup::Raw
-  alias old_ruby? ruby?
-  def ruby?
-    @format ||= nil
-    @format == :ruby
-  end
-end
-
-# HACK
-class RDoc::RDoc
-  class << self
-    alias old_current current
-    def current
-      @current ||= nil
-    end
-  end
-end
