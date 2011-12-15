@@ -1,9 +1,13 @@
 #!/usr/bin/ruby -w
 
+gem 'rdoc'
 require 'fileutils'
 require 'rdoc/ri/driver'
 
+$d ||= false
+$f ||= false
 $q ||= false
+$v ||= false
 
 # Forces /bin/tr to ignore badly formatted "unicode". (no clue where from)
 ENV['LANG'] = ""
@@ -63,52 +67,72 @@ class RDoc::OSXDictionary
     }
   end
 
-  def display_class_info definition, source
-    fullname  = definition.full_name
+  def write_class_info klass, stores, path
+    m_seen = {} # HACK: known issue: on a case insensitive FS we're losing files
 
-    name      = definition.name
-    is_class  = ! definition.module?
-    supername = definition.superclass if is_class
-    comment   = to_html.convert definition.comment
+    File.open(path, "w") do |f|
+      c_result, m_result = [], []
 
-    type       = is_class ? "class" : "module"
-    title      = is_class ? "class #{fullname} < #{supername}" : "module #{fullname}"
+      m_seen.clear
+      seen_system = false
 
-    comment = "Improperly formatted" if EXCLUDE[fullname]
+      fullname  = klass
 
-    result = []
+      f.puts <<-"EOD".gsub(/^ {6}/, '')
+        <d:entry id="#{id fullname}" d:title="#{fullname}">
+          <d:index d:value="#{fullname.munge}"/>
+      EOD
 
-    shortname = "<d:index d:value=#{name.munge.inspect}/>" if name != fullname
+      first = true
 
-    result << <<-"EOD".gsub(/^ {6}/, '')
-      <d:entry id="#{id type, fullname}" d:title="#{fullname}">
-        <d:index d:value="#{fullname.munge}"/>
-        #{shortname}
-        <h1>#{title.munge}</h1>
+      stores.each do |store|
+        cdesc     = store.load_class klass
+        type      = store.type
+        from      = store.friendly_path
+        name      = cdesc.name
+        is_class  = ! cdesc.module?
+        supername = cdesc.superclass if is_class
+        comment   = to_html.convert cdesc.comment
+        type      = is_class ? "class" : "module"
+        title     = is_class ? "class #{fullname}" : "module #{fullname}"
 
-        #{comment}
-    EOD
+        title += " < #{supername}" if is_class and supername != "Object"
 
-    result << class_details(name, fullname, definition)
+        comment = "Improperly formatted" if EXCLUDE[fullname]
 
-    # TODO: proper extension support
-    # detail = class_details(name, fullname, extension, 4)
+        shortname = "<d:index d:value=#{name.munge.inspect}/>" if name != fullname
 
-      #  result << "<h2>Extensions:</h2>" unless extensions.empty? # FIX
+        f.puts <<-"EOD".gsub(/^ {8}/, '')
+            #{shortname}
+            <h1>#{title.munge}</h1>
+            <h3>From: #{from}</h3>
 
-      # extensions << "<h3>#{gemname}:</h3>"
-      # extensions << detail
-      # %w(class_methods instance_methods includes constants).each do |k|
-      #   definition[k] -= extension[k]
-      # end
-    # end
+            #{comment}
+        EOD
 
-    result << <<-"EOD".gsub(/^    /, '')
-    </d:entry>
-    EOD
-    result.join("\n")
+        level = first ? 2 : 4
+        first = false
+
+        f.puts class_details(name, fullname, cdesc, level)
+
+        cdesc.method_list.each do |method|
+          next if m_seen[method.full_name.downcase]
+          method = store.load_method klass, method.full_name
+          m_result << display_method_info(method, from)
+          m_seen[method.full_name.downcase] = true
+        end
+      end # stores.each
+
+      f.puts <<-"EOD".gsub(/^ {6}/, '')
+        </d:entry>
+
+      EOD
+
+      f.puts m_result.join("\n\n")
+    end
   end
 
+  # REFACTOR: fold this back in
   def class_details name, fullname, definition, level = 2
     h         = "h#{level}"
     result    = []
@@ -138,7 +162,7 @@ class RDoc::OSXDictionary
     result
   end
 
-  def display_method_info definition
+  def display_method_info definition, from
     klass     = definition.parent_name
 
     fullname  = definition.full_name
@@ -153,7 +177,7 @@ class RDoc::OSXDictionary
     comment = "undocumented" if comment.empty?
     comment = "Improperly formatted" if EXCLUDE[fullname]
 
-    # HACK to deal with the Dictionary compiler fucking with me.
+    # HACK to deal with the Dictionary compiler fucking with my whitespace.
     comment = comment.gsub(/<span[^>]+>/, '').gsub(/<\/span>/, '')
     comment = comment.gsub(/(<pre[^>]*>)\s*\n/, '\1')
 
@@ -162,6 +186,7 @@ class RDoc::OSXDictionary
         <d:index d:value="#{fullname.munge}"/>
         <d:index d:value="#{name.munge}"/>
         <h1>#{fullname.munge}</h1>
+        <h3>From: #{from}</h3>
         <pre class="signatures">
           #{d_signatures(name, params)}
         </pre>
@@ -180,44 +205,30 @@ class RDoc::OSXDictionary
   end
 
   def d_header
-    result = <<-"EOD"
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
-  This is a sample dictionary source file.
-  It can be built using Dictionary Development Kit.
--->
-<d:dictionary xmlns="http://www.w3.org/1999/xhtml" xmlns:d="http://www.apple.com/DTDs/DictionaryService-1.0.rng">
-  EOD
+    result = <<-"EOD".gsub(/^ {6}/, '')
+      <?xml version="1.0" encoding="UTF-8"?>
+      <d:dictionary xmlns="http://www.w3.org/1999/xhtml" xmlns:d="http://www.apple.com/DTDs/DictionaryService-1.0.rng">
+    EOD
   end
 
-  def d_footer
-    result = <<-"EOD"
-<d:entry id="front_back_matter" d:title="Front/Back Matter">
-  <h1><b>RubyGems Dictionary</b></h1>
-  <h2>Front/Back Matter</h2>
-  <div>
-    Provides dictionary definitions for all known installed ruby gems.<br/><br/>
-  </div>
-  <div>
-    <b>To see</b> this page,
-    <ol>
-      <li>Open "Go" menu.</li>
-      <li>Choose "Front/Back Matter" menu item.
-      If it has sub-menu items, choose one of them.</li>
-    </ol>
-  </div>
-  <div>
-    <b>To prepare</b> the menu item, do the followings.
-    <ol>
-      <li>Prepare this page source as an entry.</li>
-      <li>Add "DCSDictionaryFrontMatterReferenceID" key and its value to the plist of the dictionary.
-      The value should be the string of this page entry id. </li>
-    </ol>
-  </div>
-  <br/>
-</d:entry>
-</d:dictionary>
-  EOD
+  def d_footer classes, sources
+    result = <<-"EOD".gsub(/^ {6}/, '')
+      <d:entry id="front_back_matter" d:title="Front/Back Matter">
+        <h1><b>RubyGems Dictionary</b></h1>
+
+        <div>
+          Provides dictionary definitions for ruby core, stdlib, and
+          all known installed ruby gems.
+        </div>
+
+        <h3>Sources:</h3>
+        <div>#{sources.keys.sort.join ", "}</div>
+
+        <h3>Classes:</h3>
+        <div>#{classes.keys.sort.join ", "}</div>
+      </d:entry>
+      </d:dictionary>
+    EOD
   end
 
   def make
@@ -233,8 +244,6 @@ class RDoc::OSXDictionary
     ri    = RDoc::RI::Driver.new
     dict  = ri.classes
 
-    c_seen = {}
-    m_seen = {} # HACK: known issue: on a case insensitive FS we're losing files
     l_seen = {}
 
     dict.sort.each do |klass, stores|
@@ -253,36 +262,7 @@ class RDoc::OSXDictionary
         $stderr.print klass[0,1] unless l_seen[klass[0,1]]
         l_seen[klass[0,1]] = true
 
-        File.open(path, "w") do |f|
-          c_result, m_result = [], []
-
-          extension = false
-          m_seen.clear
-          stores.each do |store|
-            cdesc = store.load_class klass
-            type  = store.type
-
-            next if c_seen[[klass, type]]
-
-            # HACK: fix me after store inversion dealt with
-            next unless type == :system
-
-            c_result << display_class_info(cdesc, store.friendly_path)
-
-            cdesc.method_list.each do |method|
-              next if m_seen[method.full_name.downcase]
-              method = store.load_method klass, method.full_name
-              m_result << display_method_info(method)
-              m_seen[method.full_name.downcase] = true
-            end
-
-            extension = true
-            c_seen[[klass, type]] = true
-          end
-
-          f.puts c_result.join("\n")
-          f.puts m_result.join("\n")
-        end
+        write_class_info klass, stores, path
       end
     end
 
@@ -294,10 +274,20 @@ class RDoc::OSXDictionary
 
     seen = {}
 
+    classes = {}
+    sources = {}
+    ri.classes.sort.each do |klass, stores|
+      classes[klass] = true
+
+      stores.each do |store|
+        sources[store.friendly_path] = true
+      end
+    end
+
     File.open(dict_src_path, "w") do |xml|
       xml.puts d_header
 
-      dict.sort.each do |klass, definition|
+      dict.sort.each do |klass, stores|
         next if $q and klass !~ /^(String|Array|Bignum)/
 
         next if seen[klass]
@@ -312,7 +302,7 @@ class RDoc::OSXDictionary
         end
       end
 
-      xml.puts d_footer
+      xml.puts d_footer(classes, sources)
     end
 
     dict_name = "RubyAndGems"
@@ -382,5 +372,24 @@ end
 class String
   def munge
     self.gsub(/&/, '&amp;').gsub(/>/, '&gt;').gsub(/</, '&lt;').gsub(/-/, '&#45;')
+  end
+end
+
+# HACK
+class RDoc::Markup::Verbatim < RDoc::Markup::Raw
+  alias old_ruby? ruby?
+  def ruby?
+    @format ||= nil
+    @format == :ruby
+  end
+end
+
+# HACK
+class RDoc::RDoc
+  class << self
+    alias old_current current
+    def current
+      @current ||= nil
+    end
   end
 end
