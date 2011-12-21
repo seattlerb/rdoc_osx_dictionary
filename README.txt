@@ -1,6 +1,7 @@
 = rdoc_osx_dictionary
 
-* http://rubyforge.org/projects/seattlerb
+home :: https://github.com/seattlerb/rdoc_osx_dictionary
+rdoc :: http://docs.seattlerb.org/rdoc_osx_dictionary
 
 == DESCRIPTION:
 
