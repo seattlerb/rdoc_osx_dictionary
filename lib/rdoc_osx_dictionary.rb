@@ -71,10 +71,8 @@ class RDoc::OSXDictionary
     m_seen = {} # HACK: known issue: on a case insensitive FS we're losing files
 
     File.open(path, "w") do |f|
-      c_result, m_result = [], []
-
+      m_result = []
       m_seen.clear
-      seen_system = false
 
       fullname  = klass
 
@@ -116,10 +114,16 @@ class RDoc::OSXDictionary
         f.puts class_details(name, fullname, cdesc, level)
 
         cdesc.method_list.each do |method|
-          next if m_seen[method.full_name.downcase]
-          method = store.load_method klass, method.full_name
-          m_result << display_method_info(method, from)
-          m_seen[method.full_name.downcase] = true
+          fullname = method.full_name
+          key      = id from, fullname
+
+          next if m_seen[key]
+
+          method = store.load_method klass, fullname
+
+          # HACK: after load_method, parent_name is not full name, pass down key
+          m_result << display_method_info(method, from, key)
+          m_seen[key] = true
         end
       end # stores.each
 
@@ -162,15 +166,11 @@ class RDoc::OSXDictionary
     result
   end
 
-  def display_method_info definition, from
-    klass     = definition.parent_name
-
+  def display_method_info definition, from, key
     fullname  = definition.full_name
     name      = definition.name
-    singleton = definition.singleton
     params    = definition.arglists
     comment   = to_html.convert definition.comment
-    type      = singleton ? "defs" : "def"
 
     return if name =~ /_reduce_\d+/
 
@@ -181,8 +181,8 @@ class RDoc::OSXDictionary
     comment = comment.gsub(/<span[^>]+>/, '').gsub(/<\/span>/, '')
     comment = comment.gsub(/(<pre[^>]*>)\s*\n/, '\1')
 
-    result = <<-"EOD".gsub(/^ {6}/, '')
-      <d:entry id="#{id type, klass, name}" d:title="#{fullname.munge}">
+    return <<-"EOD".gsub(/^ {6}/, '')
+      <d:entry id="#{key}" d:title="#{fullname.munge}">
         <d:index d:value="#{fullname.munge}"/>
         <d:index d:value="#{name.munge}"/>
         <h1>#{fullname.munge}</h1>
@@ -205,14 +205,14 @@ class RDoc::OSXDictionary
   end
 
   def d_header
-    result = <<-"EOD".gsub(/^ {6}/, '')
+    return <<-"EOD".gsub(/^ {6}/, '')
       <?xml version="1.0" encoding="UTF-8"?>
       <d:dictionary xmlns="http://www.w3.org/1999/xhtml" xmlns:d="http://www.apple.com/DTDs/DictionaryService-1.0.rng">
     EOD
   end
 
   def d_footer classes, sources
-    result = <<-"EOD".gsub(/^ {6}/, '')
+    return <<-"EOD".gsub(/^ {6}/, '')
       <d:entry id="front_back_matter" d:title="Front/Back Matter">
         <h1><b>RubyGems Dictionary</b></h1>
 
@@ -247,7 +247,7 @@ class RDoc::OSXDictionary
     l_seen = {}
 
     dict.sort.each do |klass, stores|
-      path = "#{base}/dict/#{klass}.xml"
+      path = "#{base}/dict/#{klass.downcase}.xml"
 
       next if $q and klass !~ /^(String|Array|Bignum)/
 
@@ -270,8 +270,6 @@ class RDoc::OSXDictionary
 
     return unless dirty unless force
 
-    dict_src_path = "#{base}/RubyGemsDictionary.xml"
-
     seen = {}
 
     classes = {}
@@ -284,16 +282,19 @@ class RDoc::OSXDictionary
       end
     end
 
+    dict_src_path = "#{base}/RubyGemsDictionary.xml"
+
     File.open(dict_src_path, "w") do |xml|
       xml.puts d_header
 
       dict.sort.each do |klass, stores|
         next if $q and klass !~ /^(String|Array|Bignum)/
 
-        next if seen[klass]
-        seen[klass] = true
+        next if seen[klass.downcase]
+        seen[klass.downcase] = true
 
-        path = "#{base}/dict/#{klass}.xml"
+        path = "#{base}/dict/#{klass.downcase}.xml"
+
         body = File.read path rescue nil
         if body then
           xml.puts body
