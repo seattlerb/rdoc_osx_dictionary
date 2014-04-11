@@ -10,8 +10,6 @@ Hoe.spec 'rdoc_osx_dictionary' do
   developer 'Ryan Davis', 'ryand-ruby@zenspider.com'
 
   dependency 'rdoc', '~> 3.12'
-
-  self.rubyforge_name = 'seattlerb'
 end
 
 # vim: syntax=ruby
