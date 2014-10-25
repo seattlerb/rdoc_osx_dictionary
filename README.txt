@@ -25,6 +25,12 @@ Inspired by: http://priithaamer.com/blog/ruby-on-rails-dictionary-for-macosx
 
 * sudo gem install rdoc_osx_dictionary
 
+== USAGE:
+
+1. Download Auxiliary Tools for Xcode from {Apple Developer}[http://developer.apple.com].
+2. Mount the dmg by click.
+3. Execute rdoc_osx_dictionary in terminal.
+
 == LICENSE:
 
 (The MIT License)
