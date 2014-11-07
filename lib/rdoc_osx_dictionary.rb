@@ -57,8 +57,9 @@ class RDoc::OSXDictionary
 
   attr_reader :to_html
 
-  def initialize
-    @to_html = RDoc::Markup::ToHtml.new
+  def initialize(dictionary_development_kit_dir)
+    @dictionary_development_kit_dir = dictionary_development_kit_dir
+    @to_html = RDoc::Markup::ToHtml.new(RDoc::Options.new)
   end
 
   def id *args
@@ -311,9 +312,11 @@ class RDoc::OSXDictionary
     dict_path = File.expand_path "~/Library/Dictionaries"
 
     Dir.chdir base do
-      run("/Developer/Extras/Dictionary Development Kit/bin/build_dict.sh",
-          "-c=0",
-          dict_name, dict_src_path,
+      build_dict = "#{@dictionary_development_kit_dir}/bin/build_dict.sh"
+      unless File.exist?(build_dict)
+        fail "Specify the directory containing bin/build_dict.sh."
+      end
+      run(build_dict, "-c=0", dict_name, dict_src_path,
           "#{data}/RubyGemsDictionary.css",
           "#{data}/RubyGemsInfo.plist")
     end

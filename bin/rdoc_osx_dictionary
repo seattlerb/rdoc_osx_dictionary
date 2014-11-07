@@ -1,7 +1,20 @@
-#!/usr/bin/env ruby -ws
+#!/usr/bin/env ruby
 
 require 'rubygems'
+require 'optparse'
 require 'rdoc_osx_dictionary'
 
-dict = RDoc::OSXDictionary.new
-dict.make
+OPTS = {}
+OptionParser.new do |parser|
+  parser.on('-d', '--dev_path=path',
+            'Directory of Dictionary Development Kit') do |v|
+    OPTS[:dev_path] = v
+  end
+  parser.parse(ARGV)
+end
+
+unless OPTS[:dev_path]
+  OPTS[:dev_path] = '/Volumes/Auxiliary Tools/Dictionary Development Kit'
+end
+
+RDoc::OSXDictionary.new(OPTS[:dev_path]).make
