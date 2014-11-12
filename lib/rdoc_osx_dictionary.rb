@@ -14,7 +14,7 @@ ENV['LANG'] = ""
 ENV['LC_ALL'] = "C"
 
 class RDoc::OSXDictionary
-  VERSION = '2.0.1'
+  VERSION = '2.1.0'
 
   EXCLUDE = {
   }
